@@ -35,15 +35,8 @@ WELCOME = (
     "Здравствуйте! Я отвечаю на вопросы о биржевых сделках UZEX <b>только по данным реестра</b> (2022–2026). "
     "Пишите на узбекском или русском."
 )
-EXAMPLES_TITLE = "👇 Misollar / Примеры:"
-EXAMPLES = [
-    "2025-yilda paxta bo‘yicha nechta bitim tuzilgan?",
-    "2023-yilda savdo summasi bo‘yicha eng yirik sotuvchi kim?",
-    "Какая общая сумма исполненных сделок по цементу в 2024 году?",
-    "Кто покупатель по сделке №250000 и какова её сумма?",
-]
 BTN_HELP = "❓ Yordam / Помощь"
-BTN_EXAMPLES = "💡 Misollar / Примеры"
+BTN_EXAMPLES_OLD = "💡 Misollar / Примеры"  # removed button; old keyboards may still send it
 
 # per-language labels: 'uz' (Latin), 'uz_cyr' (Uzbek Cyrillic), 'ru'
 T = {
@@ -58,10 +51,11 @@ T = {
                  "uz_cyr": "Кечирасиз, техник хатолик юз берди. Саволни қайта юборинг ёки 🔄 тугмасини босинг.",
                  "ru": "Извините, произошла техническая ошибка. Отправьте вопрос ещё раз или нажмите 🔄."},
     "about":    {"uz": "Men UZEX birja bitimlari bo‘yicha savollarga faqat reyestr ma’lumotlari asosida javob beraman. "
-                       "Masalan:",
+                       "Savolingizni o‘zbek yoki rus tilida yozing.",
                  "uz_cyr": "Мен UZEX биржа битимлари бўйича саволларга фақат реестр маълумотлари асосида жавоб "
-                           "бераман. Масалан:",
-                 "ru": "Я отвечаю на вопросы о биржевых сделках UZEX только по данным реестра. Например:"},
+                           "бераман. Саволингизни ўзбек ёки рус тилида ёзинг.",
+                 "ru": "Я отвечаю на вопросы о биржевых сделках UZEX только по данным реестра. "
+                       "Напишите вопрос на русском или узбекском."},
     "too_long": {"uz": "Savol juda uzun (500 belgigacha yozing).", "uz_cyr": "Савол жуда узун (500 белгигача ёзинг).",
                  "ru": "Слишком длинный вопрос (до 500 символов)."},
     "expired":  {"uz": "Bu xabar eskirgan, savolni qayta yuboring.", "uz_cyr": "Бу хабар эскирган, саволни қайта юборинг.",
@@ -78,18 +72,7 @@ def lang_of(text: str) -> str:
 # ------------------------------------------------------------------ keyboards
 
 def reply_kb() -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text=BTN_HELP), KeyboardButton(text=BTN_EXAMPLES)]],
-                               resize_keyboard=True, is_persistent=True)
-
-
-def examples_kb(idx: list[int] | None = None) -> InlineKeyboardMarkup:
-    idx = list(range(len(EXAMPLES))) if idx is None else idx
-    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=EXAMPLES[i], callback_data=f"ex:{i}")]
-                                                 for i in idx])
-
-
-def two_examples(lang: str) -> list[int]:
-    return [2, 3] if lang == "ru" else [0, 1]
+    return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text=BTN_HELP)]], resize_keyboard=True, is_persistent=True)
 
 
 def answer_kb(lang: str, has_sql: bool) -> InlineKeyboardMarkup:
@@ -262,7 +245,7 @@ async def run_question(bot: Bot, chat_id: int, question: str, user_id: int | Non
     question = (question or "").strip()
     lang = lang_of(question)
     if not question or _GREETING.match(question):  # greeting / empty: explain + 2 examples, no LLM call
-        await bot.send_message(chat_id, html.escape(T["about"][lang]), reply_markup=examples_kb(two_examples(lang)))
+        await bot.send_message(chat_id, html.escape(T["about"][lang]))
         return
     if len(question) > MAX_QUESTION:
         await bot.send_message(chat_id, html.escape(T["too_long"][lang]))
@@ -278,9 +261,9 @@ async def run_question(bot: Bot, chat_id: int, question: str, user_id: int | Non
         log.info("user=%s status=%s provider=%s seconds=%s q=%r", user_id, r["status"], r["provider"],
                  r["seconds"], question[:200])
         sqls = [e["sql"] for e in r.get("evidence", []) if not e.get("error")]
-        if r["status"] == "not_found" and not sqls:  # off-topic: say what the bot does + 2 examples
+        if r["status"] == "not_found" and not sqls:  # off-topic: say what the bot does
             text = html.escape(r["text"]) + "\n\n" + html.escape(T["about"][lang])
-            await _deliver(bot, chat_id, status_id, [text], examples_kb(two_examples(lang)))
+            await _deliver(bot, chat_id, status_id, [text], None)
             return
         variants = [render(r, lang), render(r, lang, simple=True)]
         msg_id = await _deliver(bot, chat_id, status_id, variants, answer_kb(lang, bool(sqls)))
@@ -304,14 +287,9 @@ dp = Dispatcher()
 @dp.message(CommandStart())
 @dp.message(Command("help"))
 @dp.message(F.text == BTN_HELP)
+@dp.message(F.text == BTN_EXAMPLES_OLD)
 async def on_help(message: Message) -> None:
-    await message.answer(WELCOME, reply_markup=reply_kb())        # also installs the persistent keyboard
-    await message.answer(EXAMPLES_TITLE, reply_markup=examples_kb())
-
-
-@dp.message(F.text == BTN_EXAMPLES)
-async def on_examples(message: Message) -> None:
-    await message.answer(EXAMPLES_TITLE, reply_markup=examples_kb())
+    await message.answer(WELCOME, reply_markup=reply_kb())  # also replaces any old keyboard
 
 
 @dp.message(F.text)
@@ -320,12 +298,8 @@ async def on_question(message: Message, bot: Bot) -> None:
 
 
 @dp.callback_query(F.data.startswith("ex:"))
-async def on_example(cb: CallbackQuery, bot: Bot) -> None:
+async def on_old_example(cb: CallbackQuery) -> None:  # buttons left in old chats: just close the spinner
     await cb.answer()
-    i = int(cb.data.split(":")[1])
-    if cb.message and 0 <= i < len(EXAMPLES):
-        await bot.send_message(cb.message.chat.id, f"❔ {html.escape(EXAMPLES[i])}")  # show what was asked
-        await run_question(bot, cb.message.chat.id, EXAMPLES[i], cb.from_user.id)
 
 
 @dp.callback_query(F.data == "rerun")
@@ -356,7 +330,7 @@ async def on_sql(cb: CallbackQuery, bot: Bot) -> None:
 
 @dp.message()
 async def on_other(message: Message) -> None:  # stickers, photos, voice…
-    await message.answer(html.escape(f"{T['about']['uz']}\n{T['about']['ru']}"), reply_markup=examples_kb([0, 2]))
+    await message.answer(html.escape(f"{T['about']['uz']}\n{T['about']['ru']}"))
 
 
 async def main() -> None:
