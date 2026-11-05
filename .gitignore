@@ -6,3 +6,4 @@ uzex.duckdb
 uzex.duckdb.wal
 uzex_spot_data/
 *.zip
+.vps
