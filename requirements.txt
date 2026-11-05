@@ -1,0 +1,6 @@
+duckdb==2.0.0
+numpy==2.4.6
+openai==3.46.0
+anthropic==2.5.0
+python-dotenv
+aiogram==3.31.0

@@ -1,0 +1,22 @@
+[Unit]
+Description=UZEX deals Telegram bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=uzex
+Group=uzex
+WorkingDirectory=/opt/uzex-bot
+EnvironmentFile=/opt/uzex-bot/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/uzex-bot/.venv/bin/python bot.py
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+MemoryMax=600M
+CPUQuota=100%
+
+[Install]
+WantedBy=multi-user.target
