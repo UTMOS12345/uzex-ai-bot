@@ -10,7 +10,7 @@ or product disqualifies the team**.
 > Data: 500 000 fictional deals (2022–2026), 6 616 contracts, 14 392 companies, 120 brokers and daily USD rates,
 > provided by the organizers. Everything is made up; see `uzex_spot_data/README.md` inside the zip.
 
-<!-- Add a screenshot of the bot here: ![demo](docs/demo.png) -->
+![demo](docs/demo.png)
 
 ## Results
 
